@@ -3,25 +3,17 @@ import { GoogleGenAI } from "@google/genai";
 import { PosterConfig } from "../types";
 
 export class GeminiService {
-  private static getAI() {
-    // API KEY harus diambil dari process.env.API_KEY sesuai instruksi platform
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      throw new Error("API Key tidak terdeteksi. Pastikan Anda sudah mengatur API Key di environment.");
-    }
-    return new GoogleGenAI({ apiKey });
-  }
-
   static async generatePoster(
     base64Image: string, 
     config: PosterConfig,
     isHighQuality: boolean = false
   ): Promise<string> {
-    const ai = this.getAI();
-    // Gunakan model sesuai spesifikasi tugas
+    // Selalu buat instance baru tepat sebelum pemanggilan untuk memastikan API Key terbaru digunakan
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Pilih model berdasarkan kebutuhan kualitas
     const modelName = isHighQuality ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
-    // Prompt dioptimalkan agar lebih instruktif bagi model image-to-image
     const prompt = `
       As a professional commercial graphic designer, transform this product photo into a high-end promotional poster.
       
@@ -31,12 +23,11 @@ export class GeminiService {
       - Marketing Details: "${config.details}"
       
       DESIGN RULES:
-      1. Keep the original product shape and details intact. Do not distort the product.
+      1. Keep the original product shape and details intact.
       2. Enhance the lighting to professional studio quality.
       3. Create a premium background that complements the product category.
       4. Add clean, modern typography for the title and price.
-      5. The final output must be a single cohesive advertisement image.
-      6. Required Aspect Ratio: ${config.ratio}.
+      5. Required Aspect Ratio: ${config.ratio}.
     `;
 
     try {
@@ -56,25 +47,22 @@ export class GeminiService {
         config: {
           imageConfig: {
             aspectRatio: config.ratio as any,
-            // imageSize hanya berlaku untuk gemini-3-pro-image-preview
             ...(modelName === 'gemini-3-pro-image-preview' ? { imageSize: config.quality } : {})
           }
         }
       });
 
       if (!response.candidates || response.candidates.length === 0) {
-        throw new Error("AI tidak memberikan respon. Coba gunakan gambar produk yang lebih jelas.");
+        throw new Error("AI tidak memberikan respons. Coba gambar lain.");
       }
 
       const candidate = response.candidates[0];
 
-      // PENTING: Cek apakah diblokir oleh Safety Filter (Sering jadi penyebab gagal)
       if (candidate.finishReason === 'SAFETY') {
-        throw new Error("Konten diblokir oleh filter keamanan AI. Coba ubah deskripsi produk atau gunakan gambar lain.");
+        throw new Error("Konten diblokir oleh filter keamanan AI.");
       }
 
       let imageUrl = '';
-      // Iterasi parts untuk mencari inlineData (gambar)
       if (candidate.content && candidate.content.parts) {
         for (const part of candidate.content.parts) {
           if (part.inlineData) {
@@ -85,13 +73,12 @@ export class GeminiService {
       }
 
       if (!imageUrl) {
-        throw new Error("AI membalas dengan teks tetapi gagal merender gambar. Coba kurangi detail deskripsi.");
+        throw new Error("AI gagal menghasilkan gambar. Coba kurangi detail deskripsi.");
       }
 
       return imageUrl;
     } catch (error: any) {
-      console.error("Gemini Service Error Detail:", error);
-      // Teruskan pesan error spesifik agar bisa ditampilkan di UI
+      console.error("Gemini Service Error:", error);
       throw error;
     }
   }
