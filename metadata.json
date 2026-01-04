@@ -1,0 +1,7 @@
+{
+  "name": "AdCraft AI - Professional Poster Designer",
+  "description": "Transform simple product photos into high-end commercial promotional posters using Gemini's advanced image editing capabilities. Perfect for digital marketing and social media.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
